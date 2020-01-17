@@ -9,7 +9,7 @@ import torchvision.transforms as transforms
 import os
 import argparse
 
-from models import *
+from demos.cifar10.models import *
 from adabound import AdaBound
 
 
