@@ -37,7 +37,7 @@ in your Python environment and you are ready to go!
 ### Using source code
 
 As AdaBound is a Python class with only 100+ lines, an alternative way is directly downloading
-[adabound.py](./adabound/adabound.py) and copying it to your project.
+[adabound.py](adabound/Nadabound.py) and copying it to your project.
 
 ## Usage
 

@@ -198,7 +198,7 @@ def main():
     test_accuracies = []
 
     for epoch in range(start_epoch + 1, 200):
-        scheduler.step()
+        scheduler.step()#要与202行互换位置
         train_acc = train(net, epoch, device, train_loader, optimizer, criterion)
         test_acc = test(net, device, test_loader, criterion)
 

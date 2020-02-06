@@ -3,7 +3,7 @@ import torch
 from torch.optim import Optimizer
 
 
-class AdaBound(Optimizer):
+class NesterovAdaBound(Optimizer):
     """Implements AdaBound algorithm.
     It has been proposed in `Adaptive Gradient Methods with Dynamic Bound of Learning Rate`_.
     Arguments:
@@ -38,14 +38,20 @@ class AdaBound(Optimizer):
             raise ValueError("Invalid gamma parameter: {}".format(gamma))
         defaults = dict(lr=lr, betas=betas, final_lr=final_lr, gamma=gamma, eps=eps,
                         weight_decay=weight_decay, amsbound=amsbound)
-        super(AdaBound, self).__init__(params, defaults)
+        super(NesterovAdaBound, self).__init__(params, defaults)
 
         self.base_lrs = list(map(lambda group: group['lr'], self.param_groups))
 
     def __setstate__(self, state):
-        super(AdaBound, self).__setstate__(state)
+        super(NesterovAdaBound, self).__setstate__(state)
         for group in self.param_groups:
             group.setdefault('amsbound', False)
+
+    def moment_correction(self,step):
+        sum=1
+        for i in range(step):
+            sum*=(1.-0.5*math.pow(0.96,(step+1)/250))
+        return sum
 
     def step(self, closure=None):
         """Performs a single optimization step.
@@ -68,7 +74,6 @@ class AdaBound(Optimizer):
                 amsbound = group['amsbound']
 
                 state = self.state[p]
-
                 # State initialization
                 if len(state) == 0:
                     state['step'] = 0
@@ -86,13 +91,27 @@ class AdaBound(Optimizer):
                 beta1, beta2 = group['betas']
 
                 state['step'] += 1
-
+                current_step=state['step']
+                next_step=state['step']+1
                 if group['weight_decay'] != 0:
                     grad = grad.add(group['weight_decay'], p.data)
 
+                bias_correction=1-math.pow(beta1,current_step)*self.moment_correction(current_step)
+                next_bias_correction = 1 - math.pow(beta1,next_step)*self.moment_correction(next_step)
+                v_bias_correction = 1 - beta2 ** state['step']
+
                 # Decay the first and second moment running average coefficient
+                # grad_bar=grad/bias_correction
+                grad_bar=grad/bias_correction
+
                 exp_avg.mul_(beta1).add_(1 - beta1, grad)
+                exp_avg.mul_(1/next_bias_correction)
+
                 exp_avg_sq.mul_(beta2).addcmul_(1 - beta2, grad, grad)
+                exp_avg_sq.mul_(1/v_bias_correction)
+
+                exp_avg.mul_(beta1*(1.-0.5*math.pow(0.96,next_step))).add_(1.-(beta1*(1.-0.5*math.pow(0.96,current_step))),grad_bar)
+
                 if amsbound:
                     # Maintains the maximum of all 2nd moment running avg. till now
                     torch.max(max_exp_avg_sq, exp_avg_sq, out=max_exp_avg_sq)
@@ -102,7 +121,7 @@ class AdaBound(Optimizer):
                     denom = exp_avg_sq.sqrt().add_(group['eps'])
 
                 bias_correction1 = 1 - beta1 ** state['step']
-                bias_correction2 = 1 - beta2 ** state['step']
+                bias_correction2 = v_bias_correction
                 step_size = group['lr'] * math.sqrt(bias_correction2) / bias_correction1
 
                 # Applies bounds on actual learning rate
