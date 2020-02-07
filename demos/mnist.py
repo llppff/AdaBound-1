@@ -59,8 +59,8 @@ for epoch in range(num_epochs):
         else:
             images = Variable(images.view(-1, 28 * 28))
             labels = Variable(labels)
-        outputs = model(images)
         optimizer.zero_grad()
+        outputs = model(images)
         loss = criterion(outputs, labels)
         loss.backward()
         optimizer.step()
